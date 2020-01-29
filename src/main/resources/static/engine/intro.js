@@ -53,6 +53,7 @@ function buildFirstMessage() {
     secondDiv.action = 'javascript:joinMatch()';
     //
     const joinMatchInput = document.createElement('input');
+    joinMatchInput.id = 'join-match-input';
     joinMatchInput.type = 'text';
     joinMatchInput.autofocus = true;
     secondDiv.appendChild(joinMatchInput);
@@ -93,34 +94,46 @@ function createNewMatch() {
 }
 
 function joinMatch() {
+    let matchCode = buildJoinMatchParams();
     cleanPage();
-    startEngine();
+    sendJoinMatchRequest(matchCode);
 }
 
 function sendNewMatchRequest() {
 	var ajax = new XMLHttpRequest();
 	ajax.onreadystatechange = function() {
 		if (ajax.readyState == 4 && ajax.status == 200) {
-			let match = JSON.parse(ajax.responseText);
-			prepareMatch(match.code, match.blueprint);
+			let matchConfig = JSON.parse(ajax.responseText);
+			prepareMatch(matchConfig, false);
 		}
 	}
 	ajax.open('post', '/new_match', true);
 	ajax.send();
 }
 
-function sendJoinMatchRequest() {
-	var ajax = new XMLHttpRequest();
+function sendJoinMatchRequest(matchCode) {
+    var ajax = new XMLHttpRequest();
 	ajax.onreadystatechange = function() {
 		if (ajax.readyState == 4 && ajax.status == 200) {
-			let match = JSON.parse(ajax.responseText);
-			prepareMatch(match.code, match.blueprint);
+			let matchConfig = JSON.parse(ajax.responseText);
+			prepareMatch(matchConfig, true);
 		}
 	}
-	ajax.open('post', '/join_match', true);
+	ajax.open('post', '/join_match?code=' + matchCode, true);
 	ajax.send();
 }
 
-function prepareMatch(matchCode, matchMatrix) {
-	startEngine(matchCode, matchMatrix);
+function prepareMatch(matchConfig, mustStartTimer) {
+	startEngine(
+	    matchConfig.match.code,
+	    matchConfig.match.blueprint,
+	    matchConfig.colored,
+	    matchConfig.activeTurn,
+	    mustStartTimer
+    );
+}
+
+function buildJoinMatchParams() {
+    let matchCode = document.getElementById("join-match-input").value;
+    return matchCode;
 }

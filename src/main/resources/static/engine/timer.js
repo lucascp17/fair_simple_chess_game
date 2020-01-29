@@ -21,6 +21,12 @@ function startTimer() {
     timeInterval = setInterval(countSecond, 1000);
 }
 
+function startTimerFromMoment(moment) {
+    time = moment;
+    updateTimerLabels();
+    timeInterval = setInterval(countSecond, 1000);
+}
+
 function stopTimer() {
     clearInterval(timeInterval);
 }

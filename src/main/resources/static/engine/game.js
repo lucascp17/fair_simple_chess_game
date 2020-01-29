@@ -1,23 +1,35 @@
-let blackPiecesMatrix;
-let whitePiecesMatrix;
-let firstPawnMove;
-let turnMode;
-let currentFocus;
-let matchCode;
+var blackPiecesMatrix;
+var whitePiecesMatrix;
+var firstPawnMove;
+var turnMode;
+var currentFocus;
 
-function startEngine(code, blueprint) {
+var matchCode;
+var colored;
+var state = 0;
+
+function startEngine(code, blueprint, colorIsBlack, activeTurn, mustStartTimer) {
 	matchCode = code;
-    buildGame(blueprint);
+	colored = colorIsBlack;
+	state = 0;
+    buildGame(blueprint, colored);
     buildStats();
-    startGame();
+    if (mustStartTimer)
+        startTimer();
+    if (activeTurn)
+        waitForAParner();
+    else
+        waitForPartnerMove();
 }
 
-function buildGame(blueprint) {
+function buildGame(blueprint, colored) {
+    if (colored)
+        blueprint = rotateBlueprint(blueprint);
     drawTable();
     if (blueprint)
-    	buildMatrixesFromServerBlueprint(blueprint);
+    	buildMatrixFromServerBlueprint(blueprint);
     else
-    	buildMatrixes();
+    	buildMatrix();
     buildPieces();
     buildFirstPawnMove();
     buildDecorations();
@@ -27,17 +39,34 @@ function buildGame(blueprint) {
 function buildStats() {
     const matchCodeBar = createMatchCodeBar();
     const matchTimeBar = createMatchTimeBar();
+    const instructionBar = createInstructionBar();
     //
     const stats = document.getElementById('stats');
     stats.style.marginLeft = STATS_MARGIN + 'px';
     stats.style.width = STATS_WIDTH + 'px';
     stats.appendChild(matchCodeBar);
     stats.appendChild(matchTimeBar);
+    stats.appendChild(instructionBar);
 }
 
-function startGame() {
+function startGame(colored) {
     startTimer();
-    startWhiteTurn();
+    if (colored)
+        startBlackTurn();
+    else
+        startWhiteTurn();
+}
+
+function waitForAParner() {
+    state = 0;
+    updateInstruction();
+    connect(matchCode, moveCallback, playerJoinedCallback);
+}
+
+function waitForPartnerMove() {
+    state = 3;
+    updateInstruction();
+    connect(matchCode, moveCallback, playerJoinedCallback);
 }
 
 function createMatchCodeBar() {
@@ -107,7 +136,7 @@ function createMatchTimeBarLabel() {
     timeLabel.style.background = BG_COLOR_LIGHT;
     timeLabel.style.border = 'solid 2px ' + BG_COLOR_DARK;
     timeLabel.style.color = 'black';
-    timeLabel.style.margin = '0px 0px ' + MARGIN_TOP + 'px 0px';
+    timeLabel.style.margin = '0px 0px ' + (2 * MARGIN_TOP) + 'px 0px';
     timeLabel.style.paddingTop = MARGIN_TOP + 'px';
     timeLabel.style.paddingBottom = MARGIN_TOP + 'px';
     timeLabel.style.textAlign = 'center';
@@ -115,6 +144,45 @@ function createMatchTimeBarLabel() {
     timeLabel.className = 'timer';
     //
     return timeLabel;
+}
+
+function createInstructionBar() {
+    const instructionBarHeader = createInstructionBarHeader();
+    const instructionBarLabel = createInstructionBarLabel();
+    //
+    const instructionBar = document.createElement('div');
+    instructionBar.appendChild(instructionBarHeader);
+    instructionBar.appendChild(instructionBarLabel);
+    //
+    return instructionBar;
+}
+
+function createInstructionBarHeader() {
+    const header = document.createElement('p');
+    header.style.background = BG_COLOR_DARK;
+    header.style.color = 'white';
+    header.style.margin = MARGIN_TOP + 'px 0px 0px 0px';
+    header.style.paddingTop = MARGIN_TOP + 'px';
+    header.style.paddingBottom = MARGIN_TOP + 'px';
+    header.style.textAlign = 'center';
+    header.innerText = INSTRUCTION_LABEL;
+    //
+    return header;
+}
+
+function createInstructionBarLabel() {
+    const instructLabel = document.createElement('p');
+    instructLabel.style.background = BG_COLOR_LIGHT;
+    instructLabel.style.border = 'solid 2px ' + BG_COLOR_DARK;
+    instructLabel.style.color = 'black';
+    instructLabel.style.margin = '0px 0px ' + MARGIN_TOP + 'px 0px';
+    instructLabel.style.paddingTop = MARGIN_TOP + 'px';
+    instructLabel.style.paddingBottom = MARGIN_TOP + 'px';
+    instructLabel.style.textAlign = 'center';
+    instructLabel.innerText = '00:00:00';
+    instructLabel.className = 'instruction';
+    //
+    return instructLabel;
 }
 
 function drawTable() {
@@ -277,7 +345,7 @@ function buildWhitePiecesMatrix() {
     whitePiecesMatrix.push([ROOK, KNIGHT, BISHOP, QUEEN, KING, BISHOP, KNIGHT, ROOK]);
 }
 
-function buildMatrixes() {
+function buildMatrix() {
     buildBlackPiecesMatrix();
     buildWhitePiecesMatrix();
 }
@@ -315,7 +383,7 @@ function translateServerPiece(piece) {
 	}
 }
 
-function buildBlackPiecesMatrixFromServerBlueprint(blueprint) {
+function buildBlackPiecesMatrixFromServerBlueprint(blueprint, colored) {
     blackPiecesMatrix = [];
     for (let i = 0; i < blueprint.length; ++i) {
     	let row = [];
@@ -330,7 +398,7 @@ function buildBlackPiecesMatrixFromServerBlueprint(blueprint) {
     }
 }
 
-function buildWhitePiecesMatrixFromServerBlueprint(blueprint) {
+function buildWhitePiecesMatrixFromServerBlueprint(blueprint, colored) {
     whitePiecesMatrix = [];
     for (let i = 0; i < blueprint.length; ++i) {
     	let row = [];
@@ -345,7 +413,7 @@ function buildWhitePiecesMatrixFromServerBlueprint(blueprint) {
     }
 }
 
-function buildMatrixesFromServerBlueprint(blueprint) {
+function buildMatrixFromServerBlueprint(blueprint) {
 	buildBlackPiecesMatrixFromServerBlueprint(blueprint);
 	buildWhitePiecesMatrixFromServerBlueprint(blueprint);
 }
@@ -821,7 +889,7 @@ function mayMovePawn(piece) {
     if (color === null)
         return;
     let coord = calcCoord(piece);
-    if (color === WHITE) {
+    if (color === WHITE && !colored || color === BLACK && colored) {
         let firstPosition = { x: (coord.x - 1), y: coord.y };
         // let secondPosition = { x: (coord.x - 2), y: coord.y };
         let thirdPosition = { x: (coord.x - 1), y: (coord.y - 1) };
@@ -943,6 +1011,8 @@ function selectPiece() {
     showSelection(coord.x, coord.y);
     resetPossibleMoves();
     showAllPossibleMoves(piece);
+    state = 2;
+    updateInstruction();
 }
 
 function showAction(i, j, callback) {
@@ -1042,7 +1112,7 @@ function showPawnPossibleMoves(piece) {
         return;
     let coord = calcCoord(piece);
     let firstTime = firstPawnMove[coord.x][coord.y];
-    if (color === WHITE) {
+    if ((color === WHITE && !colored) || (color === BLACK && colored)) {
         let firstPosition = { x: (coord.x - 1), y: coord.y };
         let secondPosition = { x: (coord.x - 2), y: coord.y };
         let thirdPosition = { x: (coord.x - 1), y: (coord.y - 1) };
@@ -1391,7 +1461,26 @@ function showMoveAnimation(piece, oldPlace, newPlace, callback) {
 }
 
 function finishTurn() {
-    if (turnMode === WHITE)
+    state = 3;
+    updateInstruction();
+    if (turnMode === WHITE) {
+        turnMode = BLACK;
+        document.getElementById('layer-white').style.zIndex = LOWER_ZINDEX;
+        document.getElementById('layer-black').style.zIndex = UPPER_ZINDEX;
+    } else {
+        turnMode = WHITE;
+        document.getElementById('layer-black').style.zIndex = LOWER_ZINDEX;
+        document.getElementById('layer-white').style.zIndex = UPPER_ZINDEX;
+    }
+    let checkmate = testCheckmate();
+    if (checkmate)
+        showCheckmate();
+}
+
+function startTurn() {
+    state = 1;
+    updateInstruction();
+    if (colored)
         startBlackTurn();
     else
         startWhiteTurn();
@@ -1409,6 +1498,7 @@ function movePiece() {
         return;
     let oldPlace = currentFocus;
     let newPlace = calcCoord(event.target);
+    fireMoveEvent(oldPlace, newPlace);
     showMoveAnimation(piece, oldPlace, newPlace, finishTurn);
 }
 
@@ -1451,10 +1541,16 @@ function showCheckThreat() {
 }
 
 function showWhiteWins() {
+    stopTimer();
+    state = colored ? 5 : 4;
+    updateInstruction();
     document.getElementById('white-won-display').style.visibility = 'visible';
 }
 
 function showBlackWins() {
+    stopTimer();
+    state = colored ? 4 : 5;
+    updateInstruction();
     document.getElementById('black-won-display').style.visibility = 'visible';
 }
 
@@ -1793,4 +1889,84 @@ function startWhiteTurn() {
         showCheckmate();
     else
         freeWhiteMove();
+}
+
+function updateInstruction() {
+    let message;
+    switch (state) {
+    case 0:
+        message = INSTRUCTION0;
+        break;
+    case 1:
+        message = INSTRUCTION1;
+        break;
+    case 2:
+        message = INSTRUCTION2;
+        break;
+    case 3:
+        message = INSTRUCTION3;
+        break;
+    case 4:
+        message = INSTRUCTION4;
+        break;
+    case 5:
+        message = INSTRUCTION5;
+        break;
+    }
+    let components = document.getElementsByClassName('instruction');
+    for (let i = 0; i < components.length; ++i)
+        components[i].innerText = message;
+}
+
+function fireMoveEvent(oldPlace, newPlace) {
+    let oldPosition = {x: oldPlace.x, y: oldPlace.y};
+    let newPosition = {x: newPlace.x, y: newPlace.y};
+    if (colored) {
+        oldPosition = rotatePosition(oldPosition);
+        newPosition = rotatePosition(newPosition);
+    }
+    sendMoveNotification(matchCode, colored, oldPosition.x, oldPosition.y, newPosition.x, newPosition.y);
+}
+
+function moveCallback(move) {
+    if (move.playerColor == colored)
+        return;
+    resetChecks();
+    resetThreats();
+    let fromPosition = {x: move.fromX, y: move.fromY};
+    let toPosition = {x: move.toX, y: move.toY};
+    if (colored) {
+        fromPosition = rotatePosition(fromPosition);
+        toPosition = rotatePosition(toPosition);
+    }
+    let query = document.getElementsByClassName('piece v' + fromPosition.x + ' h' + fromPosition.y);
+    let piece = query && query.length ? query[0] : null;
+    if (piece === null)
+        return;
+    showMoveAnimation(piece, fromPosition, toPosition, startTurn);
+}
+
+function playerJoinedCallback(player) {
+    if (state === 0) {
+        state = 1;
+        updateInstruction();
+        startGame(colored);
+    }
+}
+
+function rotateBlueprint(sourceBlueprint) {
+    let result = [];
+    for (let i = sourceBlueprint.length - 1; i >= 0; --i) {
+        let row = [];
+        for (let j = sourceBlueprint[i].length - 1; j >= 0; --j) {
+            let value = sourceBlueprint[i][j];
+            row.push(value);
+        }
+        result.push(row);
+    }
+    return result;
+}
+
+function rotatePosition(source) {
+    return {x: (COLS_COUNT - source.x - 1), y: (ROWS_COUNT - source.y - 1)};
 }
